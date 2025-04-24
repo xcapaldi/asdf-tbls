@@ -2,19 +2,17 @@
 
 set -euo pipefail
 
-# TODO: Ensure this is the correct GitHub homepage where releases can be downloaded for tbls.
 GH_REPO="https://github.com/k1LoW/tbls"
 TOOL_NAME="tbls"
 TOOL_TEST="tbls version"
 
 fail() {
-	echo -e "asdf-$TOOL_NAME: $*"
+	printf "asdf-%s: %s\n" "$TOOL_NAME" "$*"
 	exit 1
 }
 
 curl_opts=(-fsSL)
 
-# NOTE: You might want to remove this if tbls is not hosted on GitHub releases.
 if [ -n "${GITHUB_API_TOKEN:-}" ]; then
 	curl_opts=("${curl_opts[@]}" -H "Authorization: token $GITHUB_API_TOKEN")
 fi
@@ -31,20 +29,45 @@ list_github_tags() {
 }
 
 list_all_versions() {
-	# TODO: Adapt this. By default we simply list the tag names from GitHub releases.
-	# Change this function if tbls has other means of determining installable versions.
 	list_github_tags
 }
 
+detect_platform() {
+	local platform
+	platform=$(uname -s | tr '[:upper:]' '[:lower:]')
+	case "$platform" in
+	linux) printf "linux\n" ;;
+	darwin) printf "darwin\n" ;;
+	*) fail "Unsupported platform: $platform" ;;
+	esac
+}
+
+detect_arch() {
+	local arch
+	arch=$(uname -m | tr '[:upper:]' '[:lower:]')
+	case "$arch" in
+	x86_64) printf "amd64\n" ;;
+	aarch64 | arm64) printf "arm64\n" ;;
+	*) fail "Unsupported architecture: $arch" ;;
+	esac
+}
+
 download_release() {
-	local version filename url
+	local version filename url platform arch
 	version="$1"
 	filename="$2"
+	local platform
+	platform=$(detect_platform)
+	local arch
+	arch=$(detect_arch)
 
-	# TODO: Adapt the release URL convention for tbls
-	url="$GH_REPO/archive/v${version}.tar.gz"
+	if [ "$platform" = "darwin" ]; then
+		url="$GH_REPO/releases/download/v${version}/tbls_v${version}_${platform}_${arch}.zip"
+	else
+		url="$GH_REPO/releases/download/v${version}/tbls_v${version}_${platform}_${arch}.tar.gz"
+	fi
 
-	echo "* Downloading $TOOL_NAME release $version..."
+	printf "* Downloading %s release %s...\n" "$TOOL_NAME" "$version"
 	curl "${curl_opts[@]}" -o "$filename" -C - "$url" || fail "Could not download $url"
 }
 
@@ -52,6 +75,10 @@ install_version() {
 	local install_type="$1"
 	local version="$2"
 	local install_path="${3%/bin}/bin"
+	local platform
+	platform=$(detect_platform)
+	local arch
+	arch=$(detect_arch)
 
 	if [ "$install_type" != "version" ]; then
 		fail "asdf-$TOOL_NAME supports release installs only"
@@ -59,14 +86,35 @@ install_version() {
 
 	(
 		mkdir -p "$install_path"
-		cp -r "$ASDF_DOWNLOAD_PATH"/* "$install_path"
 
-		# TODO: Assert tbls executable exists.
+		# Determine the downloaded file name
+		local downloaded_file
+		if [ "$platform" = "darwin" ]; then
+			downloaded_file="$ASDF_DOWNLOAD_PATH/tbls_v${version}_${platform}_${arch}.zip"
+		else
+			downloaded_file="$ASDF_DOWNLOAD_PATH/tbls_v${version}_${platform}_${arch}.tar.gz"
+		fi
+
+		# Download the file
+		download_release "$version" "$downloaded_file"
+
+		# Extract the downloaded file
+		if [ "$platform" = "darwin" ]; then
+			unzip -q "$downloaded_file" -d "$install_path"
+		else
+			tar -xzf "$downloaded_file" -C "$install_path"
+		fi
+
+		# Assert tbls executable exists
+		if [ ! -f "$install_path/tbls" ]; then
+			fail "Expected tbls executable not found in $install_path"
+		fi
+
 		local tool_cmd
-		tool_cmd="$(echo "$TOOL_TEST" | cut -d' ' -f1)"
+		tool_cmd="$(printf "%s" "$TOOL_TEST" | cut -d' ' -f1)"
 		test -x "$install_path/$tool_cmd" || fail "Expected $install_path/$tool_cmd to be executable."
 
-		echo "$TOOL_NAME $version installation was successful!"
+		printf "%s %s installation was successful!\n" "$TOOL_NAME" "$version"
 	) || (
 		rm -rf "$install_path"
 		fail "An error occurred while installing $TOOL_NAME $version."

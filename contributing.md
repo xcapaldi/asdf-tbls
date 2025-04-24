@@ -5,7 +5,7 @@ Testing Locally:
 ```shell
 asdf plugin test <plugin-name> <plugin-url> [--asdf-tool-version <version>] [--asdf-plugin-gitref <git-ref>] [test-command*]
 
-# TODO: adapt this
+# Example:
 asdf plugin test tbls https://github.com/xcapaldi/asdf-tbls.git "tbls version"
 ```
 

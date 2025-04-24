@@ -15,18 +15,14 @@
 
 # Dependencies
 
-**TODO: adapt this section**
-
 - `bash`, `curl`, `tar`, and [POSIX utilities](https://pubs.opengroup.org/onlinepubs/9699919799/idx/utilities.html).
-- `SOME_ENV_VAR`: set this environment variable in your shell config to load the correct version of tool x.
+- `unzip` (required for macOS installations)
 
 # Install
 
 Plugin:
 
 ```shell
-asdf plugin add tbls
-# or
 asdf plugin add tbls https://github.com/xcapaldi/asdf-tbls.git
 ```
 
